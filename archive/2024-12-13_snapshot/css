@@ -1,0 +1,726 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #000;
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Canvas Container */
+#game-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    transition: height 0.3s ease-in-out;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* === Premium Glassmorphism Variables === */
+:root {
+    --glass-bg: rgba(8, 12, 16, 0.92);
+    --glass-bg-light: rgba(15, 20, 28, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-hover: rgba(255, 255, 255, 0.15);
+    --glass-blur: 20px;
+
+    /* Accent Colors - Neon Cyan/Green Gradient */
+    --accent-primary: #00ff9d;
+    --accent-secondary: #00d4ff;
+    --accent-gradient: linear-gradient(135deg, #00ff9d 0%, #00d4ff 100%);
+    --accent-glow: rgba(0, 255, 157, 0.4);
+    --accent-glow-soft: rgba(0, 255, 157, 0.15);
+
+    /* Status Colors */
+    --status-active: #00ff9d;
+    --status-paused: #ffa500;
+    --status-stopped: #ff4757;
+
+    /* Text Colors */
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.6);
+    --text-muted: rgba(255, 255, 255, 0.35);
+
+    /* Dimensions */
+    --panel-height: 38vh;
+    --tab-height: 52px;
+    --border-radius: 12px;
+    --border-radius-sm: 8px;
+
+    /* Animations */
+    --transition-fast: 0.15s ease;
+    --transition-smooth: 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* === Unified Bottom Panel === */
+#bottom-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--panel-height);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-top: 1px solid var(--glass-border);
+    box-shadow:
+        0 -8px 32px rgba(0, 0, 0, 0.6),
+        0 -2px 16px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+    transform: translateY(calc(100% - var(--tab-height)));
+    transition: transform 0.6s var(--transition-smooth);
+
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+body.split-screen #bottom-panel {
+    transform: translateY(0);
+}
+
+body.split-screen #bottom-panel .toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* === Premium Tab Bar with Edge Drag === */
+#unit-tabs {
+    height: var(--tab-height);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 60px 0 20px;
+    /* Right padding for toggle button */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+    position: relative;
+    /* Edge drag zone at top */
+    border-top: 4px solid transparent;
+    cursor: ns-resize;
+    transition: border-color var(--transition-fast);
+}
+
+#unit-tabs:hover {
+    border-top-color: rgba(0, 255, 157, 0.3);
+}
+
+#unit-tabs:active {
+    border-top-color: var(--accent-primary);
+}
+
+/* Toggle button (right side of tabs row) */
+.panel-toggle-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    z-index: 10;
+}
+
+.panel-toggle-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    background: rgba(0, 255, 157, 0.1);
+}
+
+.toggle-icon {
+    font-size: 16px;
+    transition: transform var(--transition-smooth);
+}
+
+/* Glowing line accent under tabs */
+#unit-tabs::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 1px;
+    background: var(--accent-gradient);
+    opacity: 0.3;
+    filter: blur(1px);
+}
+
+.unit-tab {
+    position: relative;
+    height: 100%;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all var(--transition-smooth);
+    border-bottom: 2px solid transparent;
+    background: transparent;
+}
+
+.unit-tab::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: all var(--transition-smooth);
+}
+
+.unit-tab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.unit-tab:hover::before {
+    background: var(--text-secondary);
+}
+
+.unit-tab.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+    background: linear-gradient(180deg, rgba(0, 255, 157, 0.08) 0%, transparent 100%);
+}
+
+.unit-tab.active::before {
+    background: var(--accent-primary);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* === Panel Content Area === */
+.panel-content {
+    flex: 1;
+    padding: 28px 32px;
+    overflow-y: auto;
+    /* Added scrollbar */
+    color: var(--text-primary);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.panel-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* === Premium Panel Container === */
+.panel-container {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 40px;
+    height: 100%;
+}
+
+/* === Unit Info Card === */
+.unit-info {
+    background: var(--glass-bg-light);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.unit-info h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.unit-info h3::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--accent-gradient);
+    border-radius: 2px;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.stat-item {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: var(--border-radius-sm);
+    padding: 12px;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-value.accent {
+    color: var(--accent-primary);
+    text-shadow: 0 0 12px var(--accent-glow-soft);
+}
+
+/* === Command Queue Section === */
+.command-queue {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.command-queue h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.command-queue h3::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--accent-gradient);
+    border-radius: 2px;
+}
+
+/* === Playback Controls Bar === */
+.playback-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-sm);
+}
+
+.ctrl-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all var(--transition-fast);
+    overflow: hidden;
+}
+
+.ctrl-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent-gradient);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.ctrl-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.ctrl-btn:hover::before {
+    opacity: 0.1;
+}
+
+.ctrl-btn:active {
+    transform: scale(0.98);
+}
+
+.ctrl-btn.primary {
+    background: var(--accent-gradient);
+    border-color: transparent;
+    color: #051510;
+    font-weight: 700;
+}
+
+.ctrl-btn.primary:hover {
+    box-shadow: 0 0 20px var(--accent-glow-soft);
+}
+
+.ctrl-btn.danger {
+    border-color: rgba(255, 71, 87, 0.3);
+    color: #ff4757;
+}
+
+.ctrl-btn.danger:hover {
+    border-color: #ff4757;
+    background: rgba(255, 71, 87, 0.1);
+}
+
+/* === Command Queue List === */
+.command-queue-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.command-queue-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.command-queue-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+/* === Individual Command Item === */
+.command-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-sm);
+    cursor: grab;
+    transition: all var(--transition-fast);
+    position: relative;
+    overflow: hidden;
+}
+
+.command-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent-gradient);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.command-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--glass-border-hover);
+}
+
+.command-item:hover::before {
+    opacity: 1;
+}
+
+.command-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.command-item.start-point {
+    border-color: rgba(0, 255, 157, 0.2);
+    background: rgba(0, 255, 157, 0.03);
+}
+
+.command-item.start-point::before {
+    opacity: 1;
+}
+
+/* Command Icon */
+.cmd-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--accent-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px var(--accent-glow-soft);
+}
+
+/* Command Info */
+.cmd-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.cmd-type {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.cmd-coords {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--accent-primary);
+    letter-spacing: 0.5px;
+}
+
+.cmd-details {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Consolas', monospace;
+    letter-spacing: 0;
+    margin-top: 2px;
+}
+
+/* Command Actions */
+.cmd-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.command-item:hover .cmd-actions {
+    opacity: 1;
+}
+
+.cmd-action-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all var(--transition-fast);
+}
+
+.cmd-action-btn:hover {
+    background: rgba(255, 71, 87, 0.2);
+    color: #ff4757;
+}
+
+/* === Empty State === */
+.no-commands {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.no-commands-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.3;
+}
+
+.no-commands-text {
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.no-commands-hint {
+    font-size: 11px;
+    opacity: 0.6;
+}
+
+/* Hint Text */
+.hint-text {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--glass-border);
+    margin-top: auto;
+}
+
+.hint-text kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 10px;
+    margin: 0 2px;
+}
+
+/* === Preloader === */
+#loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.loader-content {
+    text-align: center;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 2px solid rgba(80, 80, 90, 0.3);
+    border-top: 2px solid var(--accent-primary);
+    border-right: 2px solid rgba(0, 212, 255, 0.6);
+    border-radius: 50%;
+    animation: spin 1.2s linear infinite;
+    margin: 0 auto 25px;
+    box-shadow: 0 0 30px var(--accent-glow-soft);
+}
+
+.loader-title {
+    font-size: 28px;
+    font-weight: 300;
+    color: rgba(200, 200, 210, 0.9);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+.loader-text {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(120, 120, 130, 0.8);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* === Status Indicators === */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.status-badge.active {
+    background: rgba(0, 255, 157, 0.15);
+    color: var(--status-active);
+}
+
+.status-badge.paused {
+    background: rgba(255, 165, 0, 0.15);
+    color: var(--status-paused);
+}
+
+.status-badge.stopped {
+    background: rgba(255, 71, 87, 0.15);
+    color: var(--status-stopped);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* === Command Queue Interaction === */
+.command-item.highlighted {
+    background: rgba(0, 255, 136, 0.2);
+    border-color: #00ff88;
+    transform: translateX(5px);
+}
+
+.cmd-icon {
+    font-size: 1.2rem;
+    width: 24px;
+    text-align: center;
+}
+
+.command-item.start-point .cmd-icon {
+    filter: drop-shadow(0 0 5px #00ff88);
+}
