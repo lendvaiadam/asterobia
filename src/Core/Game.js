@@ -851,13 +851,19 @@ export class Game {
         // If first waypoint, start from unit's CURRENT position (not where it started)
         if (unit.waypointControlPoints.length === 0) {
             const startPos = unit.position.clone();
-            startPos._id = generateID(); // Attach ID
+            const startID = generateID();
+            startPos._id = startID; // Attach ID legacy
+
             unit.waypointControlPoints.push(startPos);
+            // Spec Compliance: Populate persistent waypoints list
+            if (!unit.waypoints) unit.waypoints = [];
+            unit.waypoints.push({ id: startID, position: startPos });
+
             unit.isPathClosed = false;
 
             // AUTO-INITIALIZE: Mark start point as "passed" immediately
-            // This ensures the unit always has a valid anchor for rejoin logic
-            unit.lastPassedControlPointID = startPos._id;
+            unit.lastPassedControlPointID = startID;
+            unit.lastWaypointId = startID; // Spec Phase 1 Field
             unit.passedControlPointCount = 1;
 
             // Create START POINT sphere marker
@@ -879,7 +885,7 @@ export class Game {
             startMarker.userData.controlPointIndex = 0;
             startMarker.userData.isStartMarker = true;
             startMarker.userData.waypointNumber = 0;
-            startMarker.userData.id = startPos._id; // Link marker via ID
+            startMarker.userData.id = startID; // Link marker via ID
             startMarker.userData.unitId = unit.id;
 
             const startLabelSprite = this.createNumberSprite(0);
@@ -894,8 +900,12 @@ export class Game {
 
         // Add the clicked point as a new waypoint
         const newPoint = point.clone();
-        newPoint._id = generateID(); // Attach ID
+        const newID = generateID();
+        newPoint._id = newID; // Attach ID legacy
+
         unit.waypointControlPoints.push(newPoint);
+        if (!unit.waypoints) unit.waypoints = [];
+        unit.waypoints.push({ id: newID, position: newPoint });
 
         // Create visual marker (Transparent Sphere on terrain surface)
         const dir = newPoint.clone().normalize();
@@ -973,6 +983,55 @@ export class Game {
 
         if (!unit.waypointControlPoints || unit.waypointControlPoints.length < 2) return;
 
+        // === CRITICAL: RE-EVALUATE TARGET BASED ON "LAST PASSED" ANCHOR ===
+        // User Requirement: "Amikor a Command Queueben rendezem át, akkor mindíg azt célozza, ami az elhagyott állomás után következik."
+        // We must ensure targetWaypointId is always Next(lastWaypointId) in the current list.
+        if (unit.waypoints && unit.waypoints.length > 0) {
+            // === PHASE 2 LOGIC: TARGET SELECTION RULE ===
+            // Rule: target = nextWaypointAfter(lastWaypointId, queueOrder)
+            // This runs on EVERY curve update (Drag, Reorder, Delete)
+
+            let newTargetIndex = 1; // Default
+
+            if (unit.lastWaypointId) {
+                const lastIdx = unit.waypoints.findIndex(wp => wp.id === unit.lastWaypointId);
+
+                if (lastIdx !== -1) {
+                    // Anchor found. Target is Next.
+                    newTargetIndex = lastIdx + 1;
+
+                    // Loop Handling
+                    if (newTargetIndex >= unit.waypoints.length) {
+                        if (unit.isPathClosed) newTargetIndex = 0;
+                        else newTargetIndex = unit.waypoints.length - 1; // Stay at end
+                    }
+                } else {
+                    // Anchor (lastWaypointId) was DELETED.
+                    // Fallback: Use the index that `lastPassedControlPointIndex` pointed to?
+                    // OR: Unit is "lost".
+                    // Logic: If Anchor is gone, we should pick a new Anchor.
+                    // Simplified: Keep unit.lastWaypointId as is (stale) until we hit a new point?
+                    // Better: If Anchor deleted, set Anchor to PREVIOUS of deleted node?
+                    // Since we don't know who was deleted, we assume Unit is at start or maintain current Target.
+
+                    // For now, if Anchor gone, logic defaults to Index 1 (reset).
+                    // This might cause a jump, but is safe.
+                    newTargetIndex = 1;
+                    if (unit.waypoints.length < 2) newTargetIndex = 0;
+                }
+            } else {
+                // No Anchor (Start)
+                newTargetIndex = 1;
+                if (unit.waypoints.length < 2) newTargetIndex = 0;
+            }
+
+            // Apply Target
+            // Check bounds again to be safe
+            if (newTargetIndex < unit.waypoints.length) {
+                unit.targetWaypointId = unit.waypoints[newTargetIndex].id;
+            }
+        }
+
         const groundOffset = unit.groundOffset || 0.5;
         const controlPoints = unit.waypointControlPoints;
 
@@ -1035,12 +1094,27 @@ export class Game {
             // === PATH SEGMENT MAPPING ===
             // Store which path index corresponds to each control point
             unit.pathSegmentIndices = [];
-            const samplesPerSegment = Math.floor(projectedPoints.length / (unit.isPathClosed ? controlPoints.length : controlPoints.length - 1));
+            // === PATH SEGMENT MAPPING (PRECISE) ===
+            // Find exact path index closest to each Control Point for accurate Arrival detection.
+            unit.pathSegmentIndices = [];
 
             for (let i = 0; i < controlPoints.length; i++) {
-                let idx = i * samplesPerSegment;
-                if (idx >= projectedPoints.length) idx = projectedPoints.length - 1;
-                unit.pathSegmentIndices.push(idx);
+                const cp = controlPoints[i];
+                let bestIdx = 0;
+                let bestDist = Infinity;
+
+                // Brute force search is fast enough (path length ~300-1000)
+                // Optimization: Start search from previous bestIdx?
+                // But path might loop or double back. Safe to search all.
+                for (let j = 0; j < unit.path.length; j++) {
+                    // Compare squared distance for speed
+                    const dSq = unit.path[j].distanceToSquared(cp);
+                    if (dSq < bestDist) {
+                        bestDist = dSq;
+                        bestIdx = j;
+                    }
+                }
+                unit.pathSegmentIndices.push(bestIdx);
             }
 
             const unitPos = unit.position.clone();
@@ -1197,41 +1271,49 @@ export class Game {
     }
 
     updateWaypointMarkerFill() {
-        if (!this.selectedUnit) return;
-        const unit = this.selectedUnit;
-        if (!unit.waypointMarkers || !unit.waypoints) return;
+        // User Request: "Minden egység folyamatosan frissíti... bármennyi unit esetén"
+        // Iterate ALL units, not just selected.
+        this.units.forEach(unit => {
+            if (!unit) return; // CRITICAL FIX: Prevent crash on null units
+            if (!unit.waypointMarkers || !unit.waypoints) return;
+            if (unit.waypointMarkers.length === 0) return;
 
-        // Determine target waypoint index
-        let targetIndex = -1;
-        if (unit.targetWaypointId) {
-            targetIndex = unit.waypoints.findIndex(wp => wp.id === unit.targetWaypointId);
-        }
+            // OPTIMIZATION: Skip invisible markers (Critical for 10k units)
+            // Assuming if first marker is invisible, set is invisible (or managed by group)
+            if (unit.waypointMarkers[0].visible === false) return;
+            // Also check if they are in scene
+            if (!unit.waypointMarkers[0].parent) return;
 
-        // Update each marker's color based on state
-        unit.waypointMarkers.forEach((marker, index) => {
-            // Skip if marker has no material
-            if (!marker.material) return;
+            // Determine target waypoint index (Local to unit)
+            // Logic is robust: Unit tracks IDs. Visuals reflect IDs.
+            unit.waypointMarkers.forEach((marker, index) => {
+                if (!marker.material) return;
 
-            // Determine state
-            let color = 0x00ff88; // Default: Green
-            let opacity = 0.7;
+                let color = 0x00ff88; // Default: Green
+                let opacity = 0.5;
 
-            if (index === targetIndex) {
-                // ORANGE: Current Target (User request: "célzott")
-                color = 0xffaa00;
-                opacity = 1.0;
-            } else if (index === targetIndex - 1) {
-                // BLUE: Just Passed (User request: "elhagyott")
-                color = 0x00aaff;
-                opacity = 0.85;
-            } else if (unit.isPathClosed && targetIndex === 0 && index === unit.waypoints.length - 1) {
-                // BLUE: Loop case - last point is "previous" when targeting first
-                color = 0x00aaff;
-                opacity = 0.85;
-            }
+                // ID-BASED COLORING (Robust to rearrangement)
+                const wp = unit.waypoints[index];
+                if (wp && unit.targetWaypointId && wp.id === unit.targetWaypointId) {
+                    // ORANGE: Current Target (Goes to)
+                    color = 0xffaa00;
+                    opacity = 1.0;
+                } else if (wp && unit.lastWaypointId && wp.id === unit.lastWaypointId) {
+                    // BLUE: Previous Anchor (Left behind)
+                    color = 0x00aaff;
+                    opacity = 0.85;
+                }
 
-            marker.material.color.setHex(color);
-            marker.material.opacity = opacity;
+                // OPTIMIZATION: Only update if changed
+                // "sok 10ezer unit" -> Performance is key.
+                if (marker.userData.lastHex !== color || marker.userData.lastOpacity !== opacity) {
+                    marker.material.color.setHex(color);
+                    marker.material.opacity = opacity;
+
+                    marker.userData.lastHex = color;
+                    marker.userData.lastOpacity = opacity;
+                }
+            });
         });
     }
 
@@ -1593,10 +1675,16 @@ export class Game {
 
         const items = list.querySelectorAll('.command-item');
         const newOrderIndices = Array.from(items).map(item => parseInt(item.dataset.index));
-
         // 1. Reorder CONTROL POINTS
         const reorderedPoints = newOrderIndices.map(i => unit.waypointControlPoints[i]);
         unit.waypointControlPoints = reorderedPoints;
+
+        // 1.5. Reorder WAYPOINTS (IDs) - Critical for robustness
+        if (unit.waypoints) {
+            const oldWaypoints = [...unit.waypoints];
+            const reorderedWPs = newOrderIndices.map(i => oldWaypoints[i]);
+            unit.waypoints = reorderedWPs;
+        }
 
         // 2. Reorder MARKERS (Visuals) to match
         // Map old indices to markers, then reassemble

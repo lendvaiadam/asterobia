@@ -264,6 +264,12 @@ export class InteractionManager {
                 if (cpIndex >= 0 && cpIndex < unit.waypointControlPoints.length) {
                     unit.waypointControlPoints[cpIndex] = newPos;
 
+                    // CRITICAL FIX: Update persistent waypoint data used by Unit.js logic!
+                    // Without this, the Unit flies to New Pos but checks dist against Old Pos.
+                    if (unit.waypoints && unit.waypoints[cpIndex]) {
+                        unit.waypoints[cpIndex].position = newPos;
+                    }
+
                     // === ROBUST ID-BASED TARGETING ===
                     // 1. Identify Target Waypoint ID
                     // If we don't have a locked target, derive it from current position

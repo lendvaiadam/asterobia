@@ -1046,8 +1046,9 @@ export class Unit {
             // Move towards target
             const toTarget = target.clone().sub(this.position).normalize();
 
-            // Speed control (constant during transition for consistency)
-            this.velocity = toTarget.multiplyScalar(this.speed);
+            // Speed control (Smooth Ease-In during transition)
+            const targetVel = toTarget.multiplyScalar(this.speed);
+            this.velocity.lerp(targetVel, dt * 3.0);
             this.velocityDirection = toTarget.clone();
 
             // Advance point (Simpler threshold for smooth curve traversal)
@@ -1081,33 +1082,109 @@ export class Unit {
                     this.pathIndex++; // Advance Index
                     this.targetControlPointIndex = this.pathIndex;     // Update Target Index (Orange - legacy)
 
-                    // Update ID for proper prioritization in Game.js visuals
-                    if (this.waypoints && this.waypoints[this.pathIndex]) {
-                        // The point we just passed (at pathIndex - 1) is the Last Waypoint
-                        // Wait, pathIndex was just incremented.
-                        // So the passed point is at this.pathIndex - 1.
-                        // But Unit.path (dense) is not Unit.waypoints (sparse).
+                    // === AUTOMATIC STATE INITIALIZATION (Proximity Based) ===
+                    // User Request: "Forget Start Point" - Detect where unit IS.
+                    if (this.waypoints && this.waypoints.length > 0) {
 
-                        // CRITICAL: We need the ID of the Control Point we just reached.
-                        // Dense path doesn't map 1:1 to Waypoints!
-                        // "Reached Waypoint" logic line 1080 executes for EVERY dense point?
-                        // YES! line 1080: if (dist < 1.0) inside loop over `this.path`.
+                        // If State Missing, Initialize based on Location (Closest Point)
+                        if (!this.lastWaypointId) {
+                            let bestD = Infinity;
+                            let bestId = this.waypoints[0].id;
 
-                        // IF `this.path` contains ALL interpolated points, then "Reached Waypoint" triggers hundreds of times!
-                        // My previous assumption was WRONG if path is dense.
-                        // But looking at code: `target = this.path[this.pathIndex]`.
-                        // If path is dense, we parse every small step.
+                            for (let wp of this.waypoints) {
+                                const d = this.position.distanceTo(wp.position);
+                                if (d < bestD) { bestD = d; bestId = wp.id; }
+                            }
+                            this.lastWaypointId = bestId;
+                        }
 
-                        // BUT, does `targetWaypointId` apply to every small step?
-                        // `InteractionManager` sets `targetWaypointId` to a specific Control Point ID.
-                        // `Unit.js` doesn't know which dense point corresponds to a Control Point unless we track it!
+                        // Ensure Target is Valid (Coming From -> Going To)
+                        if (!this.targetWaypointId || this.targetWaypointId === this.lastWaypointId) {
+                            const lastIdx = this.waypoints.findIndex(wp => wp.id === this.lastWaypointId);
+                            // Default to Next (Loop safe)
+                            let nextIdx = (lastIdx + 1) % this.waypoints.length;
 
-                        // `Game.js` `handlePathLooping` uses `CatmullRomCurve3`.
-                        // `this.path` is `loopPoints`.
+                            // Handle Open Path End logic
+                            if (!this.loopingEnabled && !this.isPathClosed && nextIdx === 0 && this.waypoints.length > 1) {
+                                nextIdx = this.waypoints.length - 1; // Stay at end
+                            }
 
-                        // If I update `targetWaypointId` based on `this.waypoints[this.pathIndex]`, it fails if pathIndex is 200 and waypoints has 5 items.
+                            if (this.waypoints[nextIdx]) {
+                                this.targetWaypointId = this.waypoints[nextIdx].id;
+                            }
+                        }
+                    }
 
-                        // I NEED TO REDESIGN THIS LOGIC.
+                    // === HYBRID ROBUST TRACKING (Spatial + Range) ===
+                    // User Request: "Immediate switch upon arrival"
+
+                    // 0. SELF-CORRECTION: Resync pathIndex if it drifted (e.g. after Edit)
+                    // If current path target is far (>5.0), we are likely desynced. Find real position.
+                    if (this.path && this.path[this.pathIndex]) {
+                        const drift = this.position.distanceTo(this.path[this.pathIndex]);
+                        if (drift > 5.0) {
+                            let bestK = this.pathIndex;
+                            let bestD = Infinity;
+
+                            // RESTRICT SEARCH: Start from Last Anchor (Blue) to prevent backtracking
+                            // User Request: "Unit only keeps where it is coming from"
+                            let startK = 0;
+                            if (this.lastWaypointId && this.waypoints && this.pathSegmentIndices) {
+                                const lastIdx = this.waypoints.findIndex(wp => wp.id === this.lastWaypointId);
+                                if (lastIdx !== -1 && this.pathSegmentIndices[lastIdx] !== undefined) {
+                                    startK = this.pathSegmentIndices[lastIdx];
+                                }
+                            }
+
+                            for (let k = startK; k < this.path.length; k++) {
+                                const d = this.path[k].distanceToSquared(this.position);
+                                if (d < bestD) { bestD = d; bestK = k; }
+                            }
+                            this.pathIndex = bestK;
+                        }
+                    }
+
+                    if (this.waypoints && this.targetWaypointId) {
+                        const targetIdx = this.waypoints.findIndex(wp => wp.id === this.targetWaypointId);
+
+                        if (targetIdx !== -1) {
+                            const targetWp = this.waypoints[targetIdx];
+                            const dist = this.position.distanceTo(targetWp.position);
+
+                            // SPATIAL TRIGGER: Close enough to Target?
+                            // Logic: Must be close, but not TOO generous to avoid skipping close waypoints.
+                            // Dynamic threshold based on speed to ensure we catch it at high speed.
+                            const speed = this.velocity ? this.velocity.length() : 0;
+                            const threshold = Math.max(2.0, speed * dt * 1.2);
+                            const spatialTrigger = dist < threshold;
+
+                            // RANGE TRIGGER: pathIndex passed the target's segment index?
+                            let rangeTrigger = false;
+                            if (this.pathSegmentIndices && this.pathSegmentIndices[targetIdx] !== undefined) {
+                                rangeTrigger = this.pathIndex >= this.pathSegmentIndices[targetIdx];
+                            }
+
+                            if (spatialTrigger || rangeTrigger) {
+                                // ARRIVED at Target (becomes new Anchor)
+                                this.lastWaypointId = targetWp.id;
+
+                                // Advance Target
+                                let nextIdx = targetIdx + 1;
+                                if (nextIdx >= this.waypoints.length) {
+                                    if (this.loopingEnabled || this.isPathClosed) nextIdx = 0;
+                                    else nextIdx = this.waypoints.length - 1;
+                                }
+
+                                if (this.waypoints[nextIdx]) {
+                                    this.targetWaypointId = this.waypoints[nextIdx].id;
+                                }
+
+                                // SYNC pathIndex to prevent lag
+                                if (this.pathSegmentIndices && this.pathSegmentIndices[targetIdx] !== undefined) {
+                                    this.pathIndex = Math.max(this.pathIndex, this.pathSegmentIndices[targetIdx] + 1);
+                                }
+                            }
+                        }
                     }
                 } else {
                     const basis = SphericalMath.getBasis(this.headingQuaternion);
