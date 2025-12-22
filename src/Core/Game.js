@@ -1272,15 +1272,46 @@ export class Game {
         // User Request: "Minden egység folyamatosan frissíti... bármennyi unit esetén"
         // Iterate ALL units, not just selected.
         this.units.forEach(unit => {
-            if (!unit) return; // CRITICAL FIX: Prevent crash on null units
+            if (!unit) return;
             if (!unit.waypointMarkers || !unit.waypoints) return;
             if (unit.waypointMarkers.length === 0) return;
+            if (unit.waypoints.length === 0) return;
 
-            // OPTIMIZATION: Skip invisible markers (Critical for 10k units)
-            // Assuming if first marker is invisible, set is invisible (or managed by group)
-            if (unit.waypointMarkers[0].visible === false) return;
-            // Also check if they are in scene
-            if (!unit.waypointMarkers[0].parent) return;
+            // === FALLBACK: Calculate IDs based on pathIndex if not set ===
+            if (unit.pathSegmentIndices && unit.pathSegmentIndices.length > 0 && unit.waypoints.length > 1) {
+                // Find which segment we're in based on pathIndex
+                // Use > instead of >= so segment only changes when we LEAVE a waypoint, not when we arrive
+                let currentSegmentIdx = 0;
+                for (let i = 0; i < unit.pathSegmentIndices.length; i++) {
+                    if (unit.pathIndex > unit.pathSegmentIndices[i]) {
+                        currentSegmentIdx = i;
+                    }
+                }
+
+                // Set lastWaypointId (BLUE) = current segment
+                const expectedLastId = unit.waypoints[currentSegmentIdx]?.id;
+                if (expectedLastId && unit.lastWaypointId !== expectedLastId) {
+                    unit.lastWaypointId = expectedLastId;
+                }
+
+                // Set targetWaypointId (ORANGE) = next segment
+                let nextIdx = currentSegmentIdx + 1;
+                if (nextIdx >= unit.waypoints.length) {
+                    if (unit.loopingEnabled || unit.isPathClosed) nextIdx = 0;
+                    else nextIdx = unit.waypoints.length - 1;
+                }
+                const expectedTargetId = unit.waypoints[nextIdx]?.id;
+                if (expectedTargetId && unit.targetWaypointId !== expectedTargetId) {
+                    unit.targetWaypointId = expectedTargetId;
+                }
+            }
+            // === INITIAL FALLBACK: If still not set, use first two waypoints ===
+            if (!unit.lastWaypointId && unit.waypoints.length > 0) {
+                unit.lastWaypointId = unit.waypoints[0].id;
+            }
+            if (!unit.targetWaypointId && unit.waypoints.length > 1) {
+                unit.targetWaypointId = unit.waypoints[1].id;
+            }
 
             // Determine target waypoint index (Local to unit)
             // Logic is robust: Unit tracks IDs. Visuals reflect IDs.
@@ -1292,6 +1323,12 @@ export class Game {
 
                 // ID-BASED COLORING using marker's own attached ID
                 const markerId = marker.userData.id;
+
+                // DEBUG: Log first marker of first unit to see what's happening
+                if (index === 0 && this.units.indexOf(unit) === 0) {
+                    console.log(`[COLOR DEBUG] markerId=${markerId?.slice(-4)} lastId=${unit.lastWaypointId?.slice(-4)} targetId=${unit.targetWaypointId?.slice(-4)}`);
+                }
+
                 if (markerId && unit.targetWaypointId && markerId === unit.targetWaypointId) {
                     // ORANGE: Current Target (Goes to)
                     color = 0xffaa00;

@@ -87,11 +87,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
             // Calculate how long music has been playing
             const musicPlayingDuration = musicStartTime ? (Date.now() - musicStartTime) : 0;
-            const MIN_MUSIC_DURATION_MS = 4000; // 4 seconds after music starts
+            const MIN_MUSIC_DURATION_MS = 2000; // Reduced to 2 seconds for faster load
+
+            // Debug: Log status every second
+            if (elapsed % 1000 < 100) {
+                console.log(`[Preloader] worldReady=${worldReady} musicPlaying=${musicPlaying} musicDuration=${musicPlayingDuration}ms elapsed=${elapsed}ms`);
+            }
 
             // Conditions for fade:
             // 1. World is ready (first render complete)
-            // 2. Music has been playing for at least 4 seconds
+            // 2. Music has been playing for at least 2 seconds
             // 3. OR timeout reached (10 seconds) - start anyway
             const musicCondition = musicPlayingDuration >= MIN_MUSIC_DURATION_MS;
             const timeout = elapsed >= MAX_WAIT_MS;

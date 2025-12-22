@@ -53,7 +53,8 @@ export class Unit {
         // === NEW WAYPOINT SYSTEM (ID-BASED) ===
         // Replaces simple vectors with Objects: { id, name, position, originalIndex }
         this.waypoints = [];
-        this.targetWaypointId = null; // ID of the station we are currently heading to (PERSISTENT)
+        this.targetWaypointId = null; // ID of the station we are currently heading to (ORANGE)
+        this.lastWaypointId = null;   // ID of the station we just left (BLUE)
 
         this.loopingEnabled = false;
         this.isPathClosed = false;
@@ -1074,8 +1075,37 @@ export class Unit {
                 console.log(`[Unit ${this.id || 'unknown'}] INIT: last=${this.lastWaypointId?.slice(-4)} target=${this.targetWaypointId?.slice(-4)}`);
             }
 
-            // NOTE: ID updates happen ONLY in the dist<1.0 block below (after pathIndex++)
-            // This ensures we use the UPDATED pathIndex, not the stale one.
+            // === SEGMENT CHANGE DETECTION (Event-based, not per-frame) ===
+            // Only update IDs when the unit actually crosses a waypoint boundary
+            if (this.waypoints && this.waypoints.length > 1 && this.pathSegmentIndices && this.pathSegmentIndices.length > 0) {
+                // Calculate current segment index
+                let currentSegmentIdx = 0;
+                for (let i = 0; i < this.pathSegmentIndices.length; i++) {
+                    if (this.pathIndex >= this.pathSegmentIndices[i]) {
+                        currentSegmentIdx = i;
+                    }
+                }
+
+                // Only update if segment actually changed OR first time
+                const isFirstTime = this._lastKnownSegment === undefined;
+                const segmentChanged = currentSegmentIdx !== this._lastKnownSegment;
+
+                if (isFirstTime || segmentChanged) {
+                    // Update tracking
+                    this._lastKnownSegment = currentSegmentIdx;
+
+                    // BLUE = the waypoint we just passed
+                    this.lastWaypointId = this.waypoints[currentSegmentIdx]?.id;
+
+                    // ORANGE = the waypoint we're going to
+                    let nextIdx = currentSegmentIdx + 1;
+                    if (nextIdx >= this.waypoints.length) {
+                        if (this.loopingEnabled || this.isPathClosed) nextIdx = 0;
+                        else nextIdx = this.waypoints.length - 1;
+                    }
+                    this.targetWaypointId = this.waypoints[nextIdx]?.id;
+                }
+            }
 
             // SEGMENT TRACKING LOGIC (Non-destructive)
             if (this.pathIndex >= this.path.length) {

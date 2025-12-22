@@ -5,7 +5,7 @@ import { Unit } from '../Entities/Unit.js'; // Import Unit for static flags
 export class DebugPanel {
     constructor(game) {
         this.game = game;
-        this.pane = new Pane({ title: 'Debug Console', expanded: true });
+        this.pane = new Pane({ title: 'Debug Console', expanded: false });
         this.autoRegenerate = true;
         this.performanceMode = false;
 
@@ -47,7 +47,7 @@ export class DebugPanel {
         script.src = '//mrdoob.github.io/stats.js/build/stats.min.js';
         document.head.appendChild(script);
 
-        const folder = this.pane.addFolder({ title: 'Profiler & Visibility', expanded: true });
+        const folder = this.pane.addFolder({ title: 'Profiler & Visibility', expanded: false });
 
         const toggles = {
             terrain: true,
@@ -78,8 +78,8 @@ export class DebugPanel {
 
         // ROCKS
         folder.addBinding(toggles, 'rocks').on('change', (ev) => {
-            if (this.game.planet && this.game.planet.rockSystem && this.game.planet.rockSystem.rocks) {
-                this.game.planet.rockSystem.rocks.visible = ev.value;
+            if (this.game.planet && this.game.planet.rockSystem && this.game.planet.rockSystem.rockGroup) {
+                this.game.planet.rockSystem.rockGroup.visible = ev.value;
             }
         });
 
@@ -106,7 +106,7 @@ export class DebugPanel {
         });
 
         // === DUST PARTICLES CONTROLS ===
-        const dustFolder = folder.addFolder({ title: 'Dust Particles', expanded: true });
+        const dustFolder = folder.addFolder({ title: 'Dust Particles', expanded: false });
         const dustConfig = {
             opacity: 0.1,
             spawnRate: 0.03
@@ -146,9 +146,9 @@ export class DebugPanel {
         });
 
         // === TRACK CONTROLS ===
-        const trackFolder = folder.addFolder({ title: 'Track Controls', expanded: true });
+        const trackFolder = folder.addFolder({ title: 'Track Controls', expanded: false });
         const trackConfig = {
-            opacity: 0.1,
+            opacity: 0.13,
             height: 0.02
         };
 
@@ -260,7 +260,7 @@ export class DebugPanel {
     }
 
     setupGraphicsControls() {
-        const folder = this.pane.addFolder({ title: 'Performance', expanded: true });
+        const folder = this.pane.addFolder({ title: 'Performance', expanded: false });
 
         // === PERFORMANCE PRESETS ===
         // Preset values: { resolutionScale, shadows, terrainRes, fowRes, dustPercent }
@@ -732,7 +732,7 @@ export class DebugPanel {
         });
 
         // Planet Star Size Control
-        const starSizeParams = { size: 0.8 };
+        const starSizeParams = { size: 0.5 };
         unitFolder.addBinding(starSizeParams, 'size', {
             min: 0.5, max: 8.0, step: 0.1, label: 'Star Size'
         }).on('change', (ev) => {
@@ -740,7 +740,11 @@ export class DebugPanel {
                 this.game.planet.starField.material.uniforms.uStarSize.value = ev.value;
             }
         });
-        const fowResParams = { resolution: 2048 };
+        // Apply initial star size on startup
+        if (this.game.planet.starField && this.game.planet.starField.material.uniforms) {
+            this.game.planet.starField.material.uniforms.uStarSize.value = starSizeParams.size;
+        }
+        const fowResParams = { resolution: 512 };
         unitFolder.addBinding(fowResParams, 'resolution', {
             label: 'FOW Resolution',
             options: {
@@ -754,6 +758,8 @@ export class DebugPanel {
         }).on('change', (ev) => {
             this.game.fogOfWar.setResolution(ev.value);
         });
+        // Apply initial FOW resolution on startup
+        this.game.fogOfWar.setResolution(fowResParams.resolution);
 
 
 
