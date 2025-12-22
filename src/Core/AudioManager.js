@@ -78,17 +78,19 @@ export class AudioManager {
 
         const sound = new THREE.PositionalAudio(this.listener);
         this.audioLoader.load('assets/audio/Motor_hum_1.mp3', (buffer) => {
+            console.log('[Audio] Unit sound loaded successfully!');
             sound.setBuffer(buffer);
             sound.setRefDistance(10);
             sound.setRolloffFactor(1.5);
             sound.setLoop(true);
-            sound.setVolume(0);
-            // DON'T play here - wait for user gesture
+            sound.setVolume(0.3); // Start with audible volume, not 0
             sound.isReady = true;
 
             unit.mesh.add(sound);
             this.unitSounds.set(unit, sound);
             this.pendingUnitSounds.push(sound);
+        }, undefined, (err) => {
+            console.error('[Audio] Failed to load unit sound:', err);
         });
     }
 
@@ -312,10 +314,10 @@ export class AudioManager {
 
             if (sound.isPlaying) {
                 // Volume based on speed
-                // Speed ~0 -> Volume 0.3 (Idle - always audible)
-                // Speed ~5 (Max) -> Volume 0.8
+                // Speed ~0 -> Volume 0.6 (Idle - clearly audible)
+                // Speed ~5 (Max) -> Volume 1.0 (Full volume)
                 const speed = unit.currentSpeed || 0;
-                const targetVol = THREE.MathUtils.lerp(0.3, 0.8, Math.min(speed / 5.0, 1.0));
+                const targetVol = THREE.MathUtils.lerp(0.6, 1.0, Math.min(speed / 5.0, 1.0));
 
                 // Smooth transition
                 sound.setVolume(THREE.MathUtils.lerp(sound.getVolume(), targetVol, 0.1));

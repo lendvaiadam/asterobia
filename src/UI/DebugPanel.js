@@ -201,12 +201,15 @@ export class DebugPanel {
         folder.addBinding(toggles, 'shadows').on('change', (ev) => {
             if (this.game.renderer) {
                 this.game.renderer.shadowMap.enabled = ev.value;
+                this.game.renderer.shadowMap.autoUpdate = ev.value;
+                this.game.renderer.shadowMap.needsUpdate = true; // Force immediate update
                 // Force material update
                 this.game.scene.traverse((obj) => {
                     if (obj.material) obj.material.needsUpdate = true;
                 });
                 if (this.game.sunLight) {
                     this.game.sunLight.castShadow = ev.value;
+                    this.game.sunLight.shadow.camera.updateProjectionMatrix();
                 }
             }
         });
@@ -318,12 +321,15 @@ export class DebugPanel {
         }).on('change', (ev) => {
             if (this.game.renderer) {
                 this.game.renderer.shadowMap.enabled = ev.value;
+                this.game.renderer.shadowMap.autoUpdate = ev.value; // CRITICAL: Re-enable auto updates
+                this.game.renderer.shadowMap.needsUpdate = true; // Force immediate update
                 this.game.scene.traverse((obj) => {
                     if (obj.material) obj.material.needsUpdate = true;
                 });
             }
             if (this.game.sunLight) {
                 this.game.sunLight.castShadow = ev.value;
+                this.game.sunLight.shadow.camera.updateProjectionMatrix();
             }
             this.switchToCustomIfNeeded();
         });
@@ -399,12 +405,15 @@ export class DebugPanel {
         if (this.game.renderer) {
             this.game.renderer.setPixelRatio(preset.resolutionScale);
             this.game.renderer.shadowMap.enabled = preset.shadows;
+            this.game.renderer.shadowMap.autoUpdate = preset.shadows; // CRITICAL: Re-enable auto updates for HIGH mode
+            this.game.renderer.shadowMap.needsUpdate = true; // Force immediate update
             this.game.scene.traverse((obj) => {
                 if (obj.material) obj.material.needsUpdate = true;
             });
         }
         if (this.game.sunLight) {
             this.game.sunLight.castShadow = preset.shadows;
+            this.game.sunLight.shadow.camera.updateProjectionMatrix();
         }
         if (this.game.planet) {
             this.game.planet.meshResolution = preset.terrainRes;
@@ -760,6 +769,21 @@ export class DebugPanel {
         });
         // Apply initial FOW resolution on startup
         this.game.fogOfWar.setResolution(fowResParams.resolution);
+
+        // FOW Blur Control
+        const fowBlurParams = { blur: 0.3 };
+        unitFolder.addBinding(fowBlurParams, 'blur', {
+            min: 0.0, max: 0.8, step: 0.05, label: 'FOW Edge Blur'
+        }).on('change', (ev) => {
+            if (this.game.fogOfWar && this.game.fogOfWar.brushMaterial) {
+                // Store blur value for future brushes
+                this.game.fogOfWar.blurAmount = ev.value;
+            }
+        });
+        // Apply initial blur on startup
+        if (this.game.fogOfWar) {
+            this.game.fogOfWar.blurAmount = fowBlurParams.blur;
+        }
 
 
 

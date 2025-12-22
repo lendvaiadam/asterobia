@@ -12,11 +12,11 @@ export class Planet {
         this.waterMesh = this.createWaterMesh();
         this.starField = this.createStarField(30000);
     }
-    
+
     createWaterMesh() {
         const waterLevel = this.terrain.params.waterLevel;
         const waterRadius = this.terrain.params.radius + waterLevel;
-        
+
         const geometry = new THREE.SphereGeometry(waterRadius, 64, 64);
         const material = new THREE.MeshPhysicalMaterial({
             color: 0x4488aa,
@@ -26,25 +26,25 @@ export class Planet {
             metalness: 0.1,
             side: THREE.DoubleSide
         });
-        
+
         // Water shader with FOW and simple waves
         const self = this;
         material.onBeforeCompile = (shader) => {
             // Wave uniforms
             shader.uniforms.uTime = { value: 0 };
             shader.uniforms.uWaveHeight = { value: 0.05 };
-            
+
             // FOW uniforms
             shader.uniforms.uFogTexture = { value: null };
             shader.uniforms.uVisibleTexture = { value: null };
-            
+
             // Vertex shader - add time uniform and wave displacement
             shader.vertexShader = `
                 uniform float uTime;
                 uniform float uWaveHeight;
                 varying vec3 vWorldPosition;
             ` + shader.vertexShader;
-            
+
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
@@ -53,7 +53,7 @@ export class Planet {
                 // Surface ripples will be done in fragment shader
                 `
             );
-            
+
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <worldpos_vertex>',
                 `
@@ -61,14 +61,14 @@ export class Planet {
                 vWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 `
             );
-            
+
             // Fragment shader - FOW integration
             shader.fragmentShader = `
                 uniform sampler2D uFogTexture;
                 uniform sampler2D uVisibleTexture;
                 varying vec3 vWorldPosition;
             ` + shader.fragmentShader;
-            
+
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <dithering_fragment>',
                 `
@@ -103,30 +103,30 @@ export class Planet {
                 #include <dithering_fragment>
                 `
             );
-            
+
             // Store shader reference
             material.waveShader = shader;
             material.materialShader = shader;
         };
-        
+
         // Store material for animation
         this.waterMaterial = material;
         this.waterTime = 0;
-        
+
         return new THREE.Mesh(geometry, material);
     }
-    
+
     // Call this each frame to animate water
     updateWater(dt, units = [], fogOfWar = null) {
         if (!this.waterTime) this.waterTime = 0;
         this.waterTime += dt;
-        
+
         if (this.waterMaterial && this.waterMaterial.waveShader) {
             const shader = this.waterMaterial.waveShader;
-            
+
             // Update time for wave animation
             shader.uniforms.uTime.value = this.waterTime;
-            
+
             // Update FOW textures if available
             if (fogOfWar) {
                 shader.uniforms.uFogTexture.value = fogOfWar.exploredTarget?.texture || null;
@@ -141,7 +141,7 @@ export class Planet {
         geometry.deleteAttribute('normal');
         geometry.deleteAttribute('uv');
         geometry = mergeVertices(geometry);
-        
+
         const positions = geometry.attributes.position;
         const colors = [];
         const v3 = new THREE.Vector3();
@@ -149,10 +149,10 @@ export class Planet {
         for (let i = 0; i < positions.count; i++) {
             v3.set(positions.getX(i), positions.getY(i), positions.getZ(i));
             v3.normalize();
-            
+
             const heightOffset = this.terrain.getHeight(v3.x, v3.y, v3.z);
             const radius = this.terrain.params.radius + heightOffset;
-            
+
             const newPos = v3.clone().multiplyScalar(radius);
             positions.setXYZ(i, newPos.x, newPos.y, newPos.z);
 
@@ -163,7 +163,7 @@ export class Planet {
         }
 
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-        
+
         // Generate spherical UVs for terrain texture
         const uvs = [];
         for (let i = 0; i < positions.count; i++) {
@@ -176,14 +176,14 @@ export class Planet {
             uvs.push(u * textureRepeat, vCoord * textureRepeat);
         }
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-        
+
         geometry.computeVertexNormals();
-        
+
         // Load sand texture
         const textureLoader = new THREE.TextureLoader();
         const sandDiffuse = textureLoader.load('assets/textures/sand_1.png');
         const sandNormal = textureLoader.load('assets/textures/sand_1_normal.png');
-        
+
         // Texture tiling settings
         sandDiffuse.wrapS = sandDiffuse.wrapT = THREE.RepeatWrapping;
         sandNormal.wrapS = sandNormal.wrapT = THREE.RepeatWrapping;
@@ -205,7 +205,7 @@ export class Planet {
             shader.uniforms.uUVOffset = { value: new THREE.Vector2(0, 0) };
             shader.uniforms.uDebugMode = { value: 0 };
             shader.uniforms.uFowColor = { value: new THREE.Color(0x000000) };
-            
+
             // Tri-planar texturing uniforms
             shader.uniforms.uTextureScale = { value: 0.5 }; // World-space texture repeat
             shader.uniforms.uUseTriPlanar = { value: 1 }; // 1 = tri-planar, 0 = UV-based
@@ -237,11 +237,11 @@ export class Planet {
                     return xAxis * blending.x + yAxis * blending.y + zAxis * blending.z;
                 }
             ` + shader.fragmentShader;
-            
+
             shader.vertexShader = `
                 varying vec3 vWorldPosition;
             ` + shader.vertexShader;
-            
+
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <worldpos_vertex>',
                 `
@@ -249,11 +249,11 @@ export class Planet {
                 vWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 `
             );
-            
+
             shader.fragmentShader = `
                 varying vec3 vWorldPosition;
             ` + shader.fragmentShader;
-            
+
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <dithering_fragment>',
                 `
@@ -299,7 +299,7 @@ export class Planet {
                 #include <dithering_fragment>
                 `
             );
-            
+
             material.materialShader = shader;
         };
 
@@ -309,33 +309,34 @@ export class Planet {
     regenerate() {
         const oldMesh = this.mesh;
         const oldWater = this.waterMesh;
-        
+
         this.mesh = this.createMesh();
+        this.mesh.receiveShadow = true; // CRITICAL: Enable shadow receiving
         this.waterMesh = this.createWaterMesh();
-        
+
         if (oldMesh.parent) {
             oldMesh.parent.add(this.mesh);
             oldMesh.parent.remove(oldMesh);
         }
-        
+
         if (oldWater && oldWater.parent) {
             oldWater.parent.add(this.waterMesh);
             oldWater.parent.remove(oldWater);
         }
-        
+
         oldMesh.geometry.dispose();
         oldMesh.material.dispose();
-        
+
         if (oldWater) {
             oldWater.geometry.dispose();
             oldWater.material.dispose();
         }
     }
-    
+
     createStarField(count) {
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
-        
+
         // Place stars on terrain surface
         for (let i = 0; i < count; i++) {
             const theta = Math.random() * Math.PI * 2;
@@ -345,18 +346,18 @@ export class Planet {
                 Math.sin(phi) * Math.sin(theta),
                 Math.cos(phi)
             );
-            
+
             // Get terrain height and place star just above surface
             const terrainRadius = this.terrain.getRadiusAt(dir);
             const pos = dir.clone().multiplyScalar(terrainRadius + 0.1);
-            
+
             positions[i * 3] = pos.x;
             positions[i * 3 + 1] = pos.y;
             positions[i * 3 + 2] = pos.z;
         }
-        
+
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        
+
         // Custom shader material that reads FOW texture
         const material = new THREE.ShaderMaterial({
             uniforms: {
@@ -402,10 +403,10 @@ export class Planet {
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
-        
+
         const stars = new THREE.Points(geometry, material);
         stars.renderOrder = 10; // Render ABOVE terrain (black) so stars show
-        
+
         console.log(`Created ${count} terrain stars (THREE.Points, FOW-aware)`);
         return stars;
     }

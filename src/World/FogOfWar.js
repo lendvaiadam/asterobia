@@ -32,7 +32,8 @@ export class FogOfWar {
             uniforms: {
                 uUnitPosition: { value: new THREE.Vector3() },
                 uVisionRadius: { value: 5.0 },
-                uPlanetRadius: { value: planetRadius }
+                uPlanetRadius: { value: planetRadius },
+                uBlurAmount: { value: 0.3 }
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -45,6 +46,7 @@ export class FogOfWar {
                 uniform vec3 uUnitPosition;
                 uniform float uVisionRadius;
                 uniform float uPlanetRadius;
+                uniform float uBlurAmount;
                 varying vec2 vUv;
                 
                 #define PI 3.14159265359
@@ -78,11 +80,9 @@ export class FogOfWar {
                     float dist = angle * uPlanetRadius;
                     
                     // Soft edge with blur
-                    // uBlurAmount controls edge softness: 0.0 = sharp, 1.0 = very soft
-                    // For low resolution (512), use higher blur (0.3-0.5)
-                    // For high resolution (2048+), use lower blur (0.05-0.1)
-                    float blurAmount = 0.3; // Default blur for softer edges
-                    float innerEdge = uVisionRadius * (1.0 - blurAmount);
+                    // blurAmount controls edge softness: 0.0 = sharp, 0.8 = very soft
+                    // Passed in via uniform from DebugPanel
+                    float innerEdge = uVisionRadius * (1.0 - uBlurAmount);
                     float alpha = 1.0 - smoothstep(innerEdge, uVisionRadius, dist);
                     
                     // Boost alpha to ensure full white in center? It's already 1.0.
@@ -128,6 +128,7 @@ export class FogOfWar {
             mesh.material.uniforms.uUnitPosition.value.copy(unit.position);
             mesh.material.uniforms.uVisionRadius.value = this.currentVisionRadius || 15.0;
             mesh.material.uniforms.uPlanetRadius.value = this.planetRadius;
+            mesh.material.uniforms.uBlurAmount.value = this.blurAmount || 0.3;
             this.fowScene.add(mesh);
         });
 
