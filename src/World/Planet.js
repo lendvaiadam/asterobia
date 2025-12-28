@@ -3,8 +3,9 @@ import { Terrain } from './Terrain.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export class Planet {
-    constructor(scene) {
+    constructor(scene, loadingManager) {
         this.scene = scene;
+        this.loadingManager = loadingManager; // Store reference
         this.terrain = new Terrain();
         this.meshResolution = 308;
         this.mesh = this.createMesh();
@@ -116,25 +117,6 @@ export class Planet {
         return new THREE.Mesh(geometry, material);
     }
 
-    // Call this each frame to animate water
-    updateWater(dt, units = [], fogOfWar = null) {
-        if (!this.waterTime) this.waterTime = 0;
-        this.waterTime += dt;
-
-        if (this.waterMaterial && this.waterMaterial.waveShader) {
-            const shader = this.waterMaterial.waveShader;
-
-            // Update time for wave animation
-            shader.uniforms.uTime.value = this.waterTime;
-
-            // Update FOW textures if available
-            if (fogOfWar) {
-                shader.uniforms.uFogTexture.value = fogOfWar.exploredTarget?.texture || null;
-                shader.uniforms.uVisibleTexture.value = fogOfWar.visibleTarget?.texture || null;
-            }
-        }
-    }
-
     createMesh() {
         const resolution = this.meshResolution;
         let geometry = new THREE.BoxGeometry(1, 1, 1, resolution, resolution, resolution);
@@ -179,8 +161,8 @@ export class Planet {
 
         geometry.computeVertexNormals();
 
-        // Load sand texture
-        const textureLoader = new THREE.TextureLoader();
+        // Load sand texture using centralized manager
+        const textureLoader = new THREE.TextureLoader(this.loadingManager);
         const sandDiffuse = textureLoader.load('assets/textures/sand_1.png');
         const sandNormal = textureLoader.load('assets/textures/sand_1_normal.png');
 

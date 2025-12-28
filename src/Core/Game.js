@@ -105,8 +105,25 @@ export class Game {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
 
+        // Asset Loading Manager
+        this.loadingManager = new THREE.LoadingManager();
+        this.assetsLoaded = false;
+
+        this.loadingManager.onLoad = () => {
+            console.log('[Game] All assets loaded!');
+            this.assetsLoaded = true;
+        };
+
+        this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+            console.log(`[Game] Loading file: ${url}.\nLoaded ${itemsLoaded} of ${itemsTotal} files.`);
+        };
+
+        this.loadingManager.onError = (url) => {
+            console.error('[Game] There was an error loading ' + url);
+        };
+
         // World
-        this.planet = new Planet();
+        this.planet = new Planet(this.scene, this.loadingManager);
         this.scene.add(this.planet.mesh);
         this.scene.add(this.planet.waterMesh);
         this.scene.add(this.planet.starField);
@@ -133,7 +150,7 @@ export class Game {
         this.fogOfWar = new FogOfWar(this.renderer, this.planet.terrain.params.radius);
 
         // Rocks on terrain (System V2)
-        this.rockSystem = new RockSystem(this, this.planet);
+        this.rockSystem = new RockSystem(this, this.planet); // Rocks are procedural, no external assets effectively
         this.rockSystem.generateRocks(); // Initial generation 
         this.planet.rockSystem = this.rockSystem; // Make accessible to Units
 
@@ -192,7 +209,8 @@ export class Game {
     // Unit Loading handled below
 
     loadUnits() {
-        const loader = new GLTFLoader();
+        // Use the centralized loading manager
+        const loader = new GLTFLoader(this.loadingManager);
         // All 5 units - Unit 1 spawns in front of camera
         const models = ['1.glb', '2.glb', '3.glb', '4.glb', '5.glb'];
         let loadedCount = 0;
@@ -2066,7 +2084,7 @@ export class Game {
         if (!this._frameCount) this._frameCount = 0;
         this._frameCount++;
 
-        if (this.onFirstRender && !this._firstRenderDone && this._frameCount > 30) {
+        if (this.onFirstRender && !this._firstRenderDone && this.assetsLoaded && this._frameCount > 30) {
             this._firstRenderDone = true;
             this.onFirstRender();
         }
