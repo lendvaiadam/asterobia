@@ -2059,6 +2059,16 @@ export class Game {
             this.planet.starField.material.uniforms.uFogTexture.value = this.fogOfWar.exploredTarget.texture;
         }
 
+        // Update Rock FOW textures (CRITICAL: rocks need FOW too!)
+        if (this.planet.rockSystem && this.planet.rockSystem.materials) {
+            this.planet.rockSystem.materials.forEach(mat => {
+                if (mat.materialShader && mat.materialShader.uniforms) {
+                    mat.materialShader.uniforms.uFogTexture.value = this.fogOfWar.exploredTarget.texture;
+                    mat.materialShader.uniforms.uVisibleTexture.value = this.fogOfWar.visibleTarget.texture;
+                }
+            });
+        }
+
         // Update Camera
         if (this.cameraControls) {
             this.cameraControls.update(0.016);

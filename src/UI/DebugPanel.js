@@ -231,24 +231,16 @@ export class DebugPanel {
     }
 
     enableLowSpecMode() {
-        // Apply aggressive optimizations
+        // Apply optimizations for lower-spec devices
+        // NOTE: Shadows are kept ON per user request
 
         // 1. Lower Resolution
         if (this.game.renderer) {
             this.game.renderer.setPixelRatio(0.6); // 60% resolution
         }
 
-        // 2. Disable Shadows Mode
-        if (this.game.renderer) {
-            this.game.renderer.shadowMap.enabled = false;
-            this.game.renderer.shadowMap.autoUpdate = false;
-            this.game.scene.traverse((obj) => {
-                if (obj.material) obj.material.needsUpdate = true;
-            });
-        }
-        if (this.game.sunLight) {
-            this.game.sunLight.castShadow = false;
-        }
+        // 2. Shadows - KEEP ENABLED (user request)
+        // Shadows are important for visual quality even in Basic mode
 
         // 3. Reduce Planet Resolution
         if (this.game.planet) {
@@ -265,7 +257,7 @@ export class DebugPanel {
         this.setPerformanceMode(true);
         this.pane.expanded = false; // Collapse panel
 
-        console.log("Low Spec Mode Activated via Script: Res=0.6, Shadows=OFF, Terrain=100");
+        console.log("Low Spec Mode Activated via Script: Res=0.6, Shadows=ON, Terrain=100");
     }
 
     setupGraphicsControls() {
@@ -274,7 +266,7 @@ export class DebugPanel {
         // === PERFORMANCE PRESETS ===
         // Preset values: { resolutionScale, shadows, terrainRes, fowRes, dustPercent }
         const PRESETS = {
-            basic: { resolutionScale: 0.6, shadows: false, terrainRes: 100, fowRes: 256, dustPercent: 25 },
+            basic: { resolutionScale: 0.6, shadows: true, terrainRes: 100, fowRes: 256, dustPercent: 25 },
             high: { resolutionScale: Math.min(window.devicePixelRatio, 2.0), shadows: true, terrainRes: 308, fowRes: 2048, dustPercent: 50 }
         };
 
@@ -393,7 +385,7 @@ export class DebugPanel {
 
     applyPerformancePreset(presetName) {
         const PRESETS = {
-            basic: { resolutionScale: 0.6, shadows: false, terrainRes: 100, fowRes: 256, dustPercent: 30 },
+            basic: { resolutionScale: 0.6, shadows: true, terrainRes: 100, fowRes: 256, dustPercent: 30 },
             high: { resolutionScale: Math.min(window.devicePixelRatio, 2.0), shadows: true, terrainRes: 308, fowRes: 2048, dustPercent: 60 }
         };
 

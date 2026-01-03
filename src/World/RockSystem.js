@@ -108,27 +108,31 @@ export class RockSystem {
                     float isVisible = visible.r; 
                     float isExplored = explored.r;
                     
-                    vec3 finalColor = gl_FragColor.rgb;
+                    // Smooth transitions using smoothstep (feathered edges)
+                    // WIDER feather band: 0.0 to 0.6 for explored boundary
+                    float exploredFactor = smoothstep(0.0, 0.6, isExplored);
+                    float visibleFactor = smoothstep(0.05, 0.4, isVisible);
                     
-                    if (isVisible > 0.1) {
-                        // Visible - keep original color
-                    } else if (isExplored > 0.1) {
-                        // Explored - desaturate/darken
-                        float gray = dot(finalColor, vec3(0.299, 0.587, 0.114));
-                        gray = pow(gray, 1.5);
-                        vec3 desaturated = vec3(gray);
-                        vec3 nightColor = vec3(0.02, 0.04, 0.08); 
-                        finalColor = mix(finalColor, desaturated, 0.95) * 0.2 + nightColor * 0.1;
-                    } else {
-                        // Unexplored - OPAQUE BLACK (Silhouette)
-                        // This prevents depth sorting issues and ensures rocks are visible as dark shapes
-                        finalColor = vec3(0.0, 0.0, 0.0);
-                        gl_FragColor = vec4(finalColor, 1.0); 
-                        return;
+                    // Unexplored rocks = TRANSPARENT (discard)
+                    if (exploredFactor < 0.01) {
+                        discard;
                     }
                     
-                     // Apply to final
-                    gl_FragColor = vec4(finalColor, 1.0); // Visible = Opaque
+                    vec3 originalColor = gl_FragColor.rgb;
+                    
+                    // Calculate color states
+                    vec3 brightColor = originalColor; // Visible - full brightness
+                    float gray = dot(originalColor, vec3(0.299, 0.587, 0.114));
+                    gray = pow(gray, 1.5);
+                    vec3 desaturated = vec3(gray);
+                    vec3 nightColor = vec3(0.02, 0.04, 0.08); 
+                    vec3 dimColor = mix(originalColor, desaturated, 0.95) * 0.2 + nightColor * 0.1; // Explored - dark
+                    
+                    // Layered blend with feather
+                    vec3 finalColor = mix(dimColor, brightColor, visibleFactor);
+                    
+                    // Alpha: ALWAYS 1.0 for explored rocks (no transparency)
+                    gl_FragColor = vec4(finalColor, 1.0);
                     
                     #include <dithering_fragment>
                     `

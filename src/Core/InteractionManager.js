@@ -387,6 +387,7 @@ export class InteractionManager {
                                     unit.transitionPath = arcPoints;
                                     unit.transitionIndex = 0;
                                     unit.isInTransition = true;
+                                    unit.isFollowingPath = true; // CRITICAL: Ensure unit continues moving
                                     unit.pathIndex = bestMergeIdx + 1; // Resume after merge point
                                     console.log('[Transition] Created arc with', arcPoints.length, 'points');
                                 }
@@ -394,6 +395,14 @@ export class InteractionManager {
 
 
                             // Just ensure manual panel update if needed
+                        }
+                    } else {
+                        // Unit was NOT following path (stationary at a station)
+                        // After dragging a waypoint, start moving again
+                        if (unit.path && unit.path.length > 0) {
+                            unit.isFollowingPath = true;
+                            unit.pathIndex = 0; // Start from beginning of path
+                            console.log('[MarkerDrag] Unit was stationary, starting path from index 0');
                         }
                     }
 
